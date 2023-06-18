@@ -1,0 +1,57 @@
+---
+title: "Data_Pre-Processing"
+author: "Wisdom"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Importing relevant libraries
+```{r}
+library(tidyverse)
+library(readxl)
+```
+
+Importing the data
+
+```{r}
+filepath = "C:\\Users\\User\\OneDrive\\NTU Documents\\Research Project - R Codes\\MSC Research\\KIVA_Africa.xlsx"
+loan_data = read_excel(filepath)
+loan_data
+```
+
+```{r}
+glimpse(loan_data)
+```
+
+
+```{r}
+attach(loan_data)
+```
+
+
+
+```{r}
+unique(CURRENCY_EXCHANGE)
+```
+
+Checking for missing values
+```{r}
+sapply(loan_data, function(x) sum(is.na(x)))
+```
+Reclassify variables
+
+```{r}
+loan_data %>% 
+    mutate(across(c(STATUS, SECTOR, COUNTRY, DISBURSAL_CURRENCY,
+                    CURRENCY_EXCHANGE, GENDER, REPAYMENT_INTERVAL), factor))
+```
+
+```{r}
+class(STATUS)
+
+```
+
