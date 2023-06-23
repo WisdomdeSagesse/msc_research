@@ -27,31 +27,36 @@ loan_data
 glimpse(loan_data)
 ```
 
-
-```{r}
-attach(loan_data)
+```{r reclassify variables}
+loan_data <- loan_data %>% 
+    mutate(across(c(STATUS, SECTOR, ACTIVITY, COUNTRY, DISBURSAL_CURRENCY,
+                    CURRENCY_EXCHANGE, GENDER, REPAYMENT_INTERVAL), factor))
 ```
 
-
-
-```{r}
-unique(CURRENCY_EXCHANGE)
+```{r selecting variables}
+loan_data <- loan_data %>%
+    select(ID, NAME, STATUS, LOAN_AMOUNT, ACTIVITY, SECTOR, COUNTRY,
+           DISBURSAL_CURRENCY, CURRENCY_EXCHANGE, GENDER, REPAYMENT_INTERVAL)
 ```
+
 
 Checking for missing values
-```{r}
+```{r handling missing values}
 sapply(loan_data, function(x) sum(is.na(x)))
+loan_data <-  loan_data %>%
+    mutate(levels(GENDER), levels = c(levels(GENDER), 'Unknown'))
+
+loan_data %>%
+    mutate(GENDER = replace_na(GENDER, 'Unknown'))
 ```
 Reclassify variables
 
 ```{r}
-loan_data %>% 
-    mutate(across(c(STATUS, SECTOR, COUNTRY, DISBURSAL_CURRENCY,
-                    CURRENCY_EXCHANGE, GENDER, REPAYMENT_INTERVAL), factor))
+loan_data
 ```
 
 ```{r}
-class(STATUS)
+levels(loan_data$GENDER)
 
 ```
 
