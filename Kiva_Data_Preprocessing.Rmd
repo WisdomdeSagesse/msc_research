@@ -13,6 +13,7 @@ Importing relevant libraries
 ```{r}
 library(tidyverse)
 library(readxl)
+library(stringr)
 ```
 
 Importing the data
@@ -27,11 +28,6 @@ loan_data
 glimpse(loan_data)
 ```
 
-```{r reclassify variables}
-loan_data <- loan_data %>% 
-    mutate(across(c(STATUS, SECTOR, ACTIVITY, COUNTRY, DISBURSAL_CURRENCY,
-                    CURRENCY_EXCHANGE, GENDER, REPAYMENT_INTERVAL), factor))
-```
 
 ```{r selecting variables}
 loan_data <- loan_data %>%
@@ -40,23 +36,49 @@ loan_data <- loan_data %>%
 ```
 
 
-Checking for missing values
+Handling missing values
 ```{r handling missing values}
 sapply(loan_data, function(x) sum(is.na(x)))
-loan_data <-  loan_data %>%
-    mutate(levels(GENDER), levels = c(levels(GENDER), 'Unknown'))
 
-loan_data %>%
-    mutate(GENDER = replace_na(GENDER, 'Unknown'))
+loan_data <- loan_data %>%
+    mutate_at(c('GENDER', 'REPAYMENT_INTERVAL'), ~replace_na(., 'Unknown'))
+
 ```
 Reclassify variables
 
+```{r reclassify variables}
+loan_data <- loan_data %>% 
+    mutate(across(c(STATUS, SECTOR, ACTIVITY, COUNTRY, DISBURSAL_CURRENCY,
+                    CURRENCY_EXCHANGE, GENDER, REPAYMENT_INTERVAL), factor))
+```
+
+Cleaning the gender column
+
 ```{r}
-loan_data
+loan_data$GENDER[loan_data$GENDER == 0] <- "Unknown"
+```
+
+
+```{r}
+count_words <- function(column, separator) {
+  words <- str_split(column, separator)
+  word_counts <- sapply(words, length)
+  return(word_counts)
+}
 ```
 
 ```{r}
-levels(loan_data$GENDER)
+loan_data$NUM_OWNERS <- count_words(loan_data$GENDER, ",")
+```
 
+
+```{r}
+loan_data
+
+```
+
+
+```{r}
+unique(loan_data$GENDER)
 ```
 
