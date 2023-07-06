@@ -44,18 +44,13 @@ loan_data <- loan_data %>%
     mutate_at(c('GENDER', 'REPAYMENT_INTERVAL'), ~replace_na(., 'Unknown'))
 
 ```
-Reclassify variables
-
-```{r reclassify variables}
-loan_data <- loan_data %>% 
-    mutate(across(c(STATUS, SECTOR, ACTIVITY, COUNTRY, DISBURSAL_CURRENCY,
-                    CURRENCY_EXCHANGE, GENDER, REPAYMENT_INTERVAL), factor))
-```
 
 Cleaning the gender column
 
 ```{r}
 loan_data$GENDER[loan_data$GENDER == 0] <- "Unknown"
+loan_data$GENDER[loan_data$GENDER == 'F'] <- "female"
+loan_data$GENDER[loan_data$GENDER == 'M'] <- "male"
 ```
 
 
@@ -71,14 +66,33 @@ count_words <- function(column, separator) {
 loan_data$NUM_OWNERS <- count_words(loan_data$GENDER, ",")
 ```
 
+```{r}
+loan_data <- loan_data %>%
+    mutate(
+        GENDER = case_when(
+            NUM_OWNERS > 1 ~ "Group",
+            TRUE           ~ GENDER
+        )
+    )
+    
+```
 
 ```{r}
-loan_data
+loan_data$GENDER <- str_to_title(loan_data$GENDER)
+```
 
+```{r checking for duplicates}
+sum(duplicated(loan_data$ID))
 ```
 
 
+```{r reclassify variables}
+kiva_loan_data <- loan_data %>% 
+    mutate(across(c(STATUS, SECTOR, ACTIVITY, COUNTRY, DISBURSAL_CURRENCY,
+                    CURRENCY_EXCHANGE, GENDER, REPAYMENT_INTERVAL), factor))
+```
+
 ```{r}
-unique(loan_data$GENDER)
+kiva_loan_data
 ```
 
