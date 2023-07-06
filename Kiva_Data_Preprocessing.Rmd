@@ -18,8 +18,8 @@ library(stringr)
 
 Importing the data
 
-```{r}
-filepath = "C:\\Users\\User\\OneDrive\\NTU Documents\\Research Project - R Codes\\MSC Research\\KIVA_Africa.xlsx"
+```{r data import}
+filepath = "C:\\Users\\User\\OneDrive\\NTU Documents\\M.Sc. Project\\Research Project - R Codes\\MSC Research\\KIVA_Africa.xlsx"
 loan_data = read_excel(filepath)
 loan_data
 ```
@@ -74,7 +74,7 @@ loan_data <- loan_data %>%
             TRUE           ~ GENDER
         )
     )
-    
+unique(loan_data$GENDER)  
 ```
 
 ```{r}
@@ -85,6 +85,12 @@ loan_data$GENDER <- str_to_title(loan_data$GENDER)
 sum(duplicated(loan_data$ID))
 ```
 
+```{r modifying output variable}
+unique(loan_data$STATUS)
+loan_data <- subset(loan_data, loan_data$STATUS == "paid" | 
+                        loan_data$STATUS == "defaulted")
+loan_data
+```
 
 ```{r reclassify variables}
 kiva_loan_data <- loan_data %>% 
@@ -92,7 +98,7 @@ kiva_loan_data <- loan_data %>%
                     CURRENCY_EXCHANGE, GENDER, REPAYMENT_INTERVAL), factor))
 ```
 
-```{r}
-kiva_loan_data
+```{r saving processed dataframe}
+saveRDS(kiva_loan_data, file = "kiva_loan_data")
 ```
 
