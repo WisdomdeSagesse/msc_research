@@ -14,6 +14,7 @@ Importing relevant libraries
 library(tidyverse)
 library(readxl)
 library(stringr)
+library(caret)
 ```
 
 Importing the data
@@ -31,7 +32,7 @@ glimpse(loan_data)
 
 ```{r selecting variables}
 loan_data <- loan_data %>%
-    select(ID, NAME, STATUS, LOAN_AMOUNT, ACTIVITY, SECTOR, COUNTRY,
+    select(ID, NAME, STATUS, LOAN_AMOUNT, SECTOR, COUNTRY,
            DISBURSAL_CURRENCY, CURRENCY_EXCHANGE, GENDER, REPAYMENT_INTERVAL)
 ```
 
@@ -93,10 +94,18 @@ loan_data
 ```
 
 ```{r reclassify variables}
-kiva_loan_data <- loan_data %>% 
-    mutate(across(c(STATUS, SECTOR, ACTIVITY, COUNTRY, DISBURSAL_CURRENCY,
+loan_data <- loan_data %>% 
+    mutate(across(c(STATUS, SECTOR, COUNTRY, DISBURSAL_CURRENCY,
                     CURRENCY_EXCHANGE, GENDER, REPAYMENT_INTERVAL), factor))
+dim(loan_data)
 ```
+
+```{r dealing with imbalanced classes}
+summary(loan_data$STATUS)
+kiva_loan_data <- upSample(loan_data[, -3], loan_data$STATUS, yname= "STATUS")
+dim(kiva_loan_data)
+```
+
 
 ```{r saving processed dataframe}
 saveRDS(kiva_loan_data, file = "kiva_loan_data")
