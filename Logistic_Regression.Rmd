@@ -1,0 +1,119 @@
+---
+title: "Logistic Regression"
+author: "Wisdom"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load data}
+data <- readRDS("kiva_loan_data")
+head(data)
+```
+
+```{r simple validation train-test split}
+data <- data %>%
+    select(STATUS, LOAN_AMOUNT, SECTOR, COUNTRY, DISBURSAL_CURRENCY, CURRENCY_EXCHANGE, GENDER, REPAYMENT_INTERVAL, NUM_OWNERS)
+
+set.seed(5)
+
+indexSet <- sample(2, nrow(data), replace = TRUE, prob = c(0.7, 0.3))
+train <- data[indexSet == 1, ]
+test <- data[indexSet == 2, ]
+
+dim(train)
+dim(test)
+```
+
+
+
+```{r logistic regression using simple validation}
+
+glm.fit <- glm(formula = STATUS ~ ., family = "binomial", data = test, maxit = 500)
+summary(glm.fit)
+
+glm.probs <- predict(glm.fit, newdata = test, type = "response")
+
+# calculating the test accuracy and error rate
+glm.preds <- rep("paid", nrow(test))
+glm.preds[glm.probs > 0.5] <- 'defaulted'
+x_tab <- table(Predicted = glm.preds, True = test$STATUS)
+confusionMatrix(x_tab)
+```
+
+
+```{r logistic regression using K Fold}
+library(boot)
+cv.glm.fit <- cv.glm(data = data, glm.fit, K = 10) 
+cv.err <- cv.glm.fit$delta[1]
+cv.err
+```
+
+
+To deal with the error generated from the normal logistic regression we will use 
+elastic regularization to eliminate multicolinearity and the impact of 
+influential observations in the data.
+
+```{r elastic regularization}
+library(glmnet)
+x_train <- model.matrix(STATUS~., train)
+y_train <- if_else(train$STATUS == "defaulted", 1, 0)
+#fitting the model with various values of alpha to determine the best alpha value
+list_of_fits <- list() #this stores the various models
+for (i in 0:10){
+    fit.name <- paste0("alpha", i/10) #sets up the name for each fit
+    #we then append each fit into the list of fits
+    list_of_fits[[fit.name]] <- cv.glmnet(x_train, y_train, family = "binomial",
+                                       alpha = i/10, type.measure = "class")
+}
+
+# to predict best value for alpha
+# convert the predictor variables in test data set into a matrix
+x_test <- model.matrix(STATUS~., data = test)
+
+results <- data.frame()
+
+for (i in 0:10){
+    fit.name <- paste0("alpha", i/10)
+    # using each model from the list of fits to predict the test data
+    fit_probs <- predict(list_of_fits[[fit.name]], 
+                         s = list_of_fits[[fit.name]]$lambda.1se, newx = x_test, 
+                     type = "response")
+    # convert probabilities to predictions
+    fit_preds <- rep("paid", nrow(test))
+    fit_preds[fit_probs > 0.5] <- "defaulted"
+    
+    #calculating the test error rate
+    test_error <- mean(fit_preds != test$STATUS)
+    #storing the results
+    temp <- data.frame(alpha = i/10, error_rate = test_error, fit_name = fit.name)
+    results <- rbind(results, temp)
+}
+
+results
+
+```
+
+```{r elastic regularization}
+# from the results we can determine that at alpha = 0.7 we get the least test error rate
+
+best.fit.model <- cv.glmnet(x_train, y_train, alpha = 0.7, type.measure = "class",
+                            family = "binomial")
+plot(best.fit.model)
+coef(best.fit.model, s= best.fit.model$lambda.1se)
+
+best.fit.probs <- predict(best.fit.model, s= best.fit.model$lambda.1se, 
+                                newx = x_test, type = "response")
+best.fit.pred <- rep("paid", nrow(test))
+best.fit.pred[best.fit.probs > .5] <- "defaulted"
+
+# plotting the confusion matrix
+x_tab<- table(pred = best.fit.pred, true = test$STATUS)
+confusionMatrix(x_tab)
+```
+Using Elastic regularization vastly improved the classification accuracy 
+from 2.87% to 97%
+
