@@ -1,0 +1,76 @@
+---
+title: "Decision_Tree"
+author: "Wisdom"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Decision Tree}
+set.seed(5)
+library(tree)
+tree_model <- tree(STATUS ~ . , data = train)
+tree_model
+
+#plotting the tree
+plot(tree_model)
+text(tree_model, pretty = 0.05)
+
+#evaluating the model accuracy on test data
+tree.pred <- predict(tree_model, test, type = "class")
+x_tab <- table(Predicted = tree.pred, True = test$STATUS)
+confusionMatrix(x_tab)
+```
+
+```{r prunning the tree}
+cv_tree_model <- cv.tree(tree_model, FUN = prune.misclass)
+names(cv_tree_model)
+cv_tree_model
+# the tree with 7 termainal nodes returns the least cross-validation errors - 64
+
+#plotting the tree
+par(mfrow = c(1,2))
+plot(cv_tree_model$size, cv_tree_model$dev, type = 'b')
+plot(cv_tree_model$k, cv_tree_model$dev, type = 'b')
+
+#evaluating the model's accuracy on test data
+prune.tree <- prune.misclass(tree_model, best = 7)
+tree.prune.pred <- predict(prune.tree, test, type = "class")
+x_tab.prune <- table(Predicted = tree.prune.pred, True = test$STATUS)
+confusionMatrix(x_tab.prune)
+
+#plotting the pruned tree
+plot(prune.tree)
+text(prune.tree, pretty = 0.01)
+
+# there is no improvement in prediction accuracy when the tree is pruned
+```
+
+```{r Random Forest}
+library(ggplot2)
+library(cowplot)
+library(randomForest)
+
+rf_model <- randomForest(STATUS ~ ., data = test)
+rf_model
+
+rf_pred <- predict(rf_model, newdata = test, type = "class")
+x_tab_rf <- table(Predicted = rf_pred, True = test$STATUS)
+confusionMatrix(x_tab_rf)
+
+importance(rf_model)
+# random forest marginally improves the prediction accuracy by 1%
+```
+
+```{r}
+
+```
+
+
+
+
+
+
