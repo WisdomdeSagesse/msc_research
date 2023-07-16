@@ -1,0 +1,56 @@
+---
+title: "Support_Vector_Machine"
+author: "Wisdom"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r support vector classifier}
+library(e1071)
+set.seed(5)
+
+svm.class.model <- tune(svm, STATUS ~ ., data = train, kernel = "linear",
+                  ranges = list(cost = c(0.001, 0.01, 0.1, 1, 5, 10, 100)))
+
+summary(svm.class.model)
+
+bestmod <- svm.class.model$best.model
+
+summary(bestmod)
+
+pred <- predict(bestmod, test)
+
+x_tab_svm_class <- table(Predicted = pred, True = test$STATUS)
+
+confusionMatrix(x_tab_svm_class)
+
+```
+
+
+```{r SVM, kernel = radial}
+
+svm.fit <- tune(svm, STATUS ~ ., data = train, kernel = "radial",
+                ranges = list(
+                    cost = c(0.001, 0.01, 0.1, 1, 5, 10, 100),
+                    gamma = c(0.5, 1, 2, 3, 4, 5)
+                )
+            )
+
+summary(svm.fit)
+
+svm_bestmod <- svm.fit$best.model
+
+svm_pred <- predict(svm_bestmod, test)
+
+x_tab_svm <- table(Predicted = svm_pred, True = test$STATUS)
+
+confusionMatrix(x_tab_svm)
+
+
+```
+
+
