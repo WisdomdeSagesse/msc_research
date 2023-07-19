@@ -1,0 +1,118 @@
+---
+title: "Data_Viz"
+author: "Wisdom"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+```{r Country}
+loan_data %>%
+    ggplot(aes(fct_infreq(COUNTRY), fill = STATUS))+
+    geom_bar()+
+    coord_flip()+
+    theme_bw()+
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank())+
+    labs(x = "Country",
+         y = NULL,
+         title = "Number of Observations per Country")
+
+```
+
+```{r Sector}
+loan_data %>%
+    ggplot(aes(fct_infreq(SECTOR))) +
+    geom_bar(aes(fill = STATUS), position = "dodge")+
+    theme_bw()+
+    coord_flip()+
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank())+
+    labs(x = "Sector",
+         y = NULL,
+         title = "Number of Observations per Sector")
+```
+
+```{r Disbursal Currency}
+loan_data %>%
+    ggplot(aes(fct_infreq(DISBURSAL_CURRENCY), fill = STATUS))+
+    geom_bar(position = "dodge")+
+    theme_bw()+
+    #coord_flip()+
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank())+
+    labs(x = "Currency",
+         y = NULL,
+         title = "Number of Observations per Disbursed Currency")
+```
+
+```{r Gender}
+loan_data %>%
+    ggplot(aes(fct_infreq(GENDER), fill = STATUS))+
+    geom_bar()+
+    theme_bw()+
+    #coord_flip()+
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank())+
+    labs(x = "Gender",
+         y = NULL,
+         title = "Number of Observations per Gender")
+```
+
+```{r Currency Exchange}
+loan_data %>%
+    ggplot(aes(fct_infreq(CURRENCY_EXCHANGE), fill = STATUS))+
+    geom_bar(position = "dodge")+
+    theme_bw()+
+    #coord_flip()+
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank())+
+    labs(x = "Currency Exchange",
+         y = NULL,
+         title = "Number of Observations per Currency Exchange")
+```
+
+
+```{r Repayment Interval}
+loan_data %>%
+    ggplot(aes(fct_infreq(REPAYMENT_INTERVAL), fill = STATUS))+
+    geom_bar()+
+    theme_bw()+
+    #coord_flip()+
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank())+
+    labs(x = "Repayment Interval",
+         y = NULL,
+         title = "Number of Observations per Repayment Interval")
+```
+
+
+```{r Loan Amount}
+loan_data %>%
+    ggplot(aes(LOAN_AMOUNT))+
+    geom_histogram(fill = "#0E2A5F")+
+    theme_bw()+
+    labs(x = "Loan Amount",
+         y = NULL,
+         title = "Histogram of Loan Amounts")
+
+```
+
+```{r Num of Owners}
+loan_data %>%
+    ggplot(aes(NUM_OWNERS))+
+    geom_histogram(fill = "#0E2A5F")+
+    theme_bw()+
+    labs(x = "Number of Owners",
+         y = NULL,
+         title = "Histogram of Number of Owners")
+
+```
+
