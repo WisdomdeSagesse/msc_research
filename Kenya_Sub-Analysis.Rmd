@@ -129,6 +129,19 @@ confusionMatrix(x_tab)
 ```
 
 
+```{r Random Forest}
+
+ky.rf <- randomForest(STATUS ~ ., data = ky_train)
+
+ky.rf.pred <- predict(ky.rf, newdata = ky_test, type = "class")
+
+x_tab <- table(Predicted = ky.rf.pred, True = ky_test$STATUS)
+
+confusionMatrix(x_tab)
+
+```
+
+
 ```{r Support Vector Classifier}
 
 library(e1071)
