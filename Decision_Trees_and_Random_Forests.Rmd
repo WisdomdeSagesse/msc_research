@@ -11,13 +11,13 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r Decision Tree}
 set.seed(5)
-library(tree)
-tree_model <- tree(STATUS ~ . , data = train)
-tree_model
+library(rpart)
+library(rpart.plot)
+tree_model <- rpart(STATUS ~ . , data = train, method = "class")
+summary(tree_model)
 
 #plotting the tree
-plot(tree_model)
-text(tree_model, pretty = 0.05)
+rpart.plot(tree_model, extra = 106)
 
 #evaluating the model accuracy on test data
 tree.pred <- predict(tree_model, test, type = "class")
@@ -49,12 +49,32 @@ text(prune.tree, pretty = 0.01)
 # there is no improvement in prediction accuracy when the tree is pruned
 ```
 
+
+
+```{r Prune Tree}
+printcp(tree_model)
+
+plotcp(tree_model)
+
+cp <- tree_model$cptable[which.min(tree_model$cptable[,"xerror"]), "CP"]
+
+ptree_model <- prune(tree_model, cp)
+
+rpart.plot(ptree_model)
+
+ptree_pred <- predict(ptree_model, newdata = test, type = "class")
+
+x_tab <- table(Predicted = ptree_pred, True = test$STATUS)
+
+confusionMatrix(x_tab)
+```
+
+
 ```{r Random Forest}
 library(ggplot2)
-library(cowplot)
 library(randomForest)
 
-rf_model <- randomForest(STATUS ~ ., data = test)
+rf_model <- randomForest(STATUS ~ ., data = train)
 rf_model
 
 rf_pred <- predict(rf_model, newdata = test, type = "class")
@@ -65,9 +85,6 @@ importance(rf_model)
 # random forest marginally improves the prediction accuracy by 1%
 ```
 
-```{r}
-
-```
 
 
 

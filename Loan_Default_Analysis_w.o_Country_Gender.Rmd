@@ -32,14 +32,22 @@ dim(test_df)
 
 ```{r Logistic Regression}
 
-glm.fit <- glm(STATUS ~ ., data = train_df, family = "binomial", maxit = 1000)
+glm.fit <- glm(STATUS ~ ., data = train_df, family = "binomial")
 summary(glm.fit)
-
+glm.probs <- predict(glm.fit, newdata = test_df, type = "response")
 # calculating the test accuracy and error rate
-glm.preds <- rep("paid", nrow(test_df))
-glm.preds[glm.probs > 0.5] <- 'defaulted'
+glm.preds <- rep("defaulted", nrow(test_df))
+glm.preds[glm.probs > 0.5] <- "paid"
 x_tab <- table(Predicted = glm.preds, True = test_df$STATUS)
 confusionMatrix(x_tab)
+```
+
+
+```{r Logistic Regression with Cross Fold Validation}
+
+cv.glm.fit <- cv.glm(data = train_df, glm.fit, K = 5)
+
+levels(train_df$SECTOR)
 ```
 
 ```{r elastic regularization}

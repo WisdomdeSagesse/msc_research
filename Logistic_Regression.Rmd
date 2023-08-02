@@ -32,30 +32,29 @@ dim(test)
 
 ```{r logistic regression using simple validation}
 
-glm.fit <- glm(formula = STATUS ~ ., family = "binomial", data = test, maxit = 500)
+glm.fit <- glm(formula = STATUS ~ ., family = "binomial", data = train)
 summary(glm.fit)
 
 glm.probs <- predict(glm.fit, newdata = test, type = "response")
 
 # calculating the test accuracy and error rate
-glm.preds <- rep("paid", nrow(test))
-glm.preds[glm.probs > 0.5] <- 'defaulted'
+glm.preds <- rep("defaulted", nrow(test))
+glm.preds[glm.probs > 0.5] <- 'paid'
 x_tab <- table(Predicted = glm.preds, True = test$STATUS)
 confusionMatrix(x_tab)
 ```
 
 
-```{r logistic regression using K Fold}
+```{r Logistic Regression with Cross Fold Validation}
 library(boot)
-cv.glm.fit <- cv.glm(data = data, glm.fit, K = 10) 
-cv.err <- cv.glm.fit$delta[1]
-cv.err
+
+glm.fit2 <- glm(STATUS ~ ., data = data, family = "binomial")
+
+cv.error <- cv.glm(data, glm.fit2, K = 5)$delta[1]
+
+cv.error
+
 ```
-
-
-To deal with the error generated from the normal logistic regression we will use 
-elastic regularization to eliminate multicolinearity and the impact of 
-influential observations in the data.
 
 ```{r elastic regularization}
 library(glmnet)
@@ -98,9 +97,9 @@ results
 ```
 
 ```{r elastic regularization}
-# from the results we can determine that at alpha = 0.7 we get the least test error rate
+# from the results we can determine that at alpha = 0.0 we get the least test error rate
 
-best.fit.model <- cv.glmnet(x_train, y_train, alpha = 0.7, type.measure = "class",
+best.fit.model <- cv.glmnet(x_train, y_train, alpha = 0.0, type.measure = "class",
                             family = "binomial")
 plot(best.fit.model)
 coef(best.fit.model, s= best.fit.model$lambda.1se)
@@ -115,5 +114,13 @@ x_tab<- table(pred = best.fit.pred, true = test$STATUS)
 confusionMatrix(x_tab)
 ```
 Using Elastic regularization vastly improved the classification accuracy 
-from 2.87% to 97%
+from 3.5% to 96.91%
+
+
+```{r}
+library(pROC)
+roc(as.numeric(test$STATUS), as.numeric(best.fit.pred), plot = TRUE, legacy.axes = TRUE, 
+    percent = TRUE, xlab = "False Positive Rate", ylab = "True Positive Rate", 
+    col = "#377eb8", lwd = 4, print.auc = TRUE)
+```
 
