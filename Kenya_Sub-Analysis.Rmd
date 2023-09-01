@@ -78,12 +78,19 @@ for(i in 0:10){
 
 results
 
+stargazer(results,
+          title = ("best alpha value - Model 3"),
+          type = "text",
+          summary = FALSE)
+
 ```
 
-```{r Logistic Regression, alpha = 0.5}
+```{r Logistic Regression, alpha = 0.8}
 
-ky.glm.fit <- cv.glmnet(ky_xtrain, ky_ytrain, alpha = 0.5, type.measure = "class",
+ky.glm.fit <- cv.glmnet(ky_xtrain, ky_ytrain, alpha = 0.8, type.measure = "class",
                         family = "binomial")
+
+coef(ky.glm.fit, s= ky.glm.fit$lambda.1se)
 
 ky.probs <- predict(ky.glm.fit, s = ky.glm.fit$lambda.1se, newx = ky_xtest, 
                     type = "response")
@@ -92,13 +99,66 @@ ky.preds <- rep("paid", nrow(ky_test))
 
 ky.preds[ky.probs > 0.5] <- "defaulted"
 
-x_tab <- table(Predicted = ky.preds, True = ky_test$STATUS)
+ky_lr_x_tab <- table(Predicted = ky.preds, True = ky_test$STATUS)
 
-x_tab
+lr3_cm <-confusionMatrix(ky_lr_x_tab)
 
-confusionMatrix(x_tab)
+# Getting the important Variables
 
-unique(ky_test$STATUS)
+lr3_coef_df <- get_coef(ky.glm.fit)
+
+coef3_df_n5 <- lr3_coef_df %>%
+    arrange(desc(coefficient)) %>%
+    slice(1:5)
+
+coef3_df_zero <- lr3_coef_df %>%
+    filter(coefficient == 0)
+
+
+stargazer(coef3_df_n5,
+          title = ("Top 5 Variables"),
+          type = "text",
+          summary = FALSE)
+
+stargazer(coef3_df_zero,
+          title = ("Unimportant Variables"),
+          type = "text",
+          summary = FALSE)
+
+#Plotting the ROC Curve
+
+lr3_roc <- roc(ky_test$STATUS, ky.probs, plot = T, legacy.axes=TRUE, percent=TRUE, 
+                  xlab="False Positive Percentage", ylab="True Postive Percentage", 
+                  lwd=4)
+par(pty = "s")
+plot(lr3_roc, main = "ROC Curve Logistic Reg. Model 3", col = "#4daf4a", print.auc=TRUE)
+
+
+#Getting the performance metrics
+stargazer(modelmetric(lr3_cm, lr3_roc),
+          title = ("Model 3 Performance - Logistic Regression"),
+          type = "text",
+          summary = FALSE)
+
+
+#plotting the LR Plot
+
+predicted.data <- data.frame(
+    probability.of.default = ky.probs[,1],
+    Status = ky_test$STATUS
+)
+predicted.data <- predicted.data[
+    order(predicted.data$probability.of.default, decreasing = FALSE),]
+
+predicted.data$rank <- 1:nrow(predicted.data)
+
+ggplot(data = predicted.data, aes(x = rank, y = probability.of.default))+
+    geom_point(aes(color = Status), alpha = 1, shape = 4, stroke = 2)+
+     theme_bw()+
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank())+
+    xlab("Index")+
+    ylab("Predicted probability of default")
 ```
 
 ```{r Decision Tree}
@@ -108,11 +168,46 @@ ky.tree <- rpart(STATUS ~ ., data = ky_train, method = "class")
 summary(ky.tree)
 
 rpart.plot(ky.tree, extra = 106)
+
+names(ky.tree)
+
+ky.tree$variable.importance
+
+ky.tree.pred <- predict(ky.tree, newdata = ky_test, type = "class")
+
+x_tab = table(Predicted = ky.tree.pred, True = ky_test$STATUS)
+
+x_tab
+
+cm <- confusionMatrix(x_tab)
+
+#Evaluating the unpruned tree's performance
+
+treemetric <- function(CM){
+    accuracy = CM$overall["Accuracy"]
+    precision = CM$byClass["Precision"]
+    recall = CM$byClass["Recall"]
+    specificity = CM$byClass["Specificity"]
+    F1 = CM$byClass["F1"]
+    perf_metric = data.frame(Score = c(accuracy, precision, recall, specificity, F1))
+    perf_metric
+}
+
+stargazer(treemetric(cm),
+          title = ("Model 3 Unpruned Tree Performance"),
+          type = "text",
+          summary = FALSE)
+
 ```
+
+
 
 ```{r Pruning the Tree}
 
-printcp(ky.tree)
+stargazer(printcp(ky.tree),
+          title = ("Model 3 - Cost Complexity Table"),
+          type = "text",
+          summary = FALSE)
 
 plotcp(ky.tree)
 
@@ -120,25 +215,97 @@ cp <- ky.tree$cptable[which.min(ky.tree$cptable[,"xerror"]), "CP"]
 
 ky.ptree <- prune(ky.tree, cp)
 
+rpart.plot(ky.ptree)
+
 ky.ptree.pred <- predict(ky.ptree, ky_test, type = "class")
 
-x_tab <- table(Predicted = ky.ptree.pred, True = ky_test$STATUS)
+dt3_fitted <- predict(ky.ptree, ky_test, type = "prob")
 
-confusionMatrix(x_tab)
+dt3_x_tab <- table(Predicted = ky.ptree.pred, True = ky_test$STATUS)
 
+dt3_cm <- confusionMatrix(x_tab)
+
+# Plot ROC
+
+dt3_roc <- roc(ky_test$STATUS, dt3_fitted[,1], plot = T, legacy.axes=TRUE, percent=TRUE, 
+                  xlab="False Positive Percentage", ylab="True Postive Percentage", 
+                  lwd=4)
+par(pty = "s")
+plot(dt3_roc, main = "Model 3 - Decision Tree ROC Curve", col = "#4daf4a", print.auc=TRUE)
+
+stargazer(modelmetric(dt3_cm, dt3_roc),
+          title = ("Model 3 Performance - Decision Tree"),
+          type = "text",
+          summary = FALSE)
+
+#getting the variable importance
+
+var_impt3 <- get_var_impt(ky.ptree)
+
+var_impt3 %>%
+    ggplot(aes(x = reorder(Variable,  - `Gini Index`), y = `Gini Index`))+
+    geom_col()+
+    coord_flip()+
+    theme_bw()+
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank())+
+    labs(
+        x = "variable",
+        title = "Variable Importance"
+    )
 ```
-
+ 
 
 ```{r Random Forest}
 
 ky.rf <- randomForest(STATUS ~ ., data = ky_train)
 
+ky.rf
+
 ky.rf.pred <- predict(ky.rf, newdata = ky_test, type = "class")
 
-x_tab <- table(Predicted = ky.rf.pred, True = ky_test$STATUS)
+rf3_x_tab <- table(Predicted = ky.rf.pred, True = ky_test$STATUS)
 
-confusionMatrix(x_tab)
+rf3_fitted <- predict(ky.rf, ky_test, type = "prob")
 
+rf3_cm <-confusionMatrix(x_tab)
+
+#Identifying variable importance
+rf_importance3 <- data.frame(ky.rf$importance)
+rf_importance3 <- rownames_to_column(rf_importance3, "Variable")
+
+rf_importance3 %>%
+    ggplot(aes(x = reorder(Variable, -MeanDecreaseGini), y = MeanDecreaseGini))+
+    geom_col()+
+    theme_bw()+
+    coord_flip()+
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank())+
+    labs(
+        title = "Variable Importance",
+        x = "Variable"
+    )
+
+
+```
+
+
+
+```{r}
+#Plotting the ROC Curve
+
+rf3_roc <- roc(ky_test$STATUS, rf3_fitted[,1], plot = T, legacy.axes=TRUE, percent=TRUE, 
+                  xlab="False Positive Percentage", ylab="True Postive Percentage", 
+                  lwd=4)
+par(pty = "s")
+plot(rf3_roc, main = "Model 3 - Random Forest ROC Curve", col = "#4daf4a", print.auc=TRUE)
+
+#Getting the performance metrics
+stargazer(rf_modelmetric(rf3_cm, rf3_roc, ky.rf),
+          title = ("Model 3 Performance - Random Forest"),
+          type = "text",
+          summary = FALSE,
+          digits = 3)
 ```
 
 
@@ -149,18 +316,53 @@ set.seed(5)
 
 ky.svm.class <- tune(svm, STATUS ~ ., data = ky_train, kernel = "linear",
                   ranges = list(cost = c(0.001, 0.01, 0.1, 1, 5, 10, 100)))
+saveRDS(ky.svm.class, "ky.svc")
 
-summary(ky.svm.class)
+ky.svc <- readRDS("ky.svc")
 
-bestmod <- ky.svm.class$best.model
+summary(model)
 
-summary(bestmod)
+stargazer(ky.svc$performances,
+          title = ("Model 3 SVC Parameter Tuning"),
+          type = "text",
+          summary = FALSE,
+          digits = 4)
 
-ky.class.pred <- predict(bestmod, ky_test)
+ky.bestmod <-ky.svc$best.model
 
-x_tab <- table(Predicted = ky.class.pred, True = ky_test$STATUS)
+summary(ky.bestmod)
 
-confusionMatrix(x_tab)
+ky.class.pred <- predict(ky.bestmod, ky_test)
+
+
+ky.svc_x_tab <- table(Predicted = ky.class.pred, True = ky_test$STATUS)
+
+ky_svc_cm <- confusionMatrix(ky.svc_x_tab)
+
+ky_svc_cm
+
+#ROC Plot
+ky.svc.fitted <-  attributes(
+    predict(ky.bestmod, ky_test, decision.values = TRUE)
+    )$decision.values
+
+ky_svc_roc <- roc(ky_test$STATUS, ky.svc.fitted, plot = T, legacy.axes=TRUE, percent=TRUE, 
+                  xlab="False Positive Percentage", ylab="True Postive Percentage", 
+                  col="#4daf4a", lwd=4, print.auc=TRUE)
+
+
+par(pty = "s")
+plot(ky_svc_roc, main = "Model 3 - SVC ROC Curve", col = "#4daf4a", print.auc=TRUE)
+
+# Getting Model Performance Metrics
+
+modelmetric(ky_svc_cm, ky_svc_roc)
+
+stargazer(modelmetric(ky_svc_cm, ky_svc_roc),
+          title = ("Model 3 - Support Vector Classifier Performance"),
+          type = "text",
+          summary = FALSE)
+
 
 ```
 
@@ -168,21 +370,53 @@ confusionMatrix(x_tab)
 
 ky.svm <- tune(svm, STATUS ~ ., data = ky_train, kernel = "radial",
                 ranges = list(
-                    cost = c(0.001, 0.01, 0.1, 1, 5, 10, 100),
-                    gamma = c(0.5, 1, 2, 3, 4, 5)
+                    cost = c( 1, 5, 10),
+                    gamma = c(0.5, 1, 5)
                 )
             )
 
+saveRDS(ky.svm, "ky.svm")
+
+ky.svm <- readRDS("ky.svm")
+
+stargazer(ky.svm$performances,
+          title = ("Model 3 SVM Parameter Tuning"),
+          type = "text",
+          summary = FALSE,
+          digits = 4)
+
 summary(ky.svm)
 
-svm_bestmod <- ky.svm$best.model
+ky_svm_bestmod <- ky.svm$best.model
 
-ky.svm.pred <- predict(svm_bestmod, ky_test)
+ky.svm.pred <- predict(ky_svm_bestmod, ky_test)
 
-x_tab <- table(Predicted = ky.svm.pred, True = ky_test$STATUS)
+ky_svm_x_tab <- table(Predicted = ky.svm.pred, True = ky_test$STATUS)
 
-confusionMatrix(x_tab)
+ky_svm_cm <- confusionMatrix(ky_svm_x_tab)
+
+ky_svm_cm
+
+#ROC Plot
+ky.svm.fitted <-  attributes(
+    predict(ky_svm_bestmod, ky_test, decision.values = TRUE)
+    )$decision.values
+
+ky_svm_roc <- roc(ky_test$STATUS, ky.svm.fitted, plot = T, legacy.axes=TRUE, percent=TRUE, 
+                  xlab="False Positive Percentage", ylab="True Postive Percentage", 
+                  col="#4daf4a", lwd=4, print.auc=TRUE)
 
 
+par(pty = "s")
+plot(ky_svm_roc, main = "Model 3 - SVM ROC Curve", col = "#4daf4a", print.auc=TRUE)
+
+# Getting Model Performance Metrics
+
+modelmetric(ky_svm_cm, ky_svm_roc)
+
+stargazer(modelmetric(ky_svm_cm, ky_svm_roc),
+          title = ("Model 3 - SVM Performance"),
+          type = "text",
+          summary = FALSE)
 ```
 

@@ -18,15 +18,65 @@ svm.class.model <- tune(svm, STATUS ~ ., data = train, kernel = "linear",
 
 summary(svm.class.model)
 
+
+
+stargazer(svm.class.model$performances,
+          title = ("Model 1 SVC Parameter Tuning"),
+          type = "text",
+          summary = FALSE,
+          digits = 4)
+
 bestmod <- svm.class.model$best.model
 
 summary(bestmod)
 
 pred <- predict(bestmod, test)
 
+
+
 x_tab_svm_class <- table(Predicted = pred, True = test$STATUS)
 
-confusionMatrix(x_tab_svm_class)
+CM_SVC <- confusionMatrix(x_tab_svm_class)
+
+#ROC Plot
+fitted <-  attributes(
+    predict(bestmod, test, decision.values = TRUE)
+    )$decision.values
+
+m1_svc_roc <- roc(test$STATUS, fitted, plot = T, legacy.axes=TRUE, percent=TRUE, 
+                  xlab="False Positive Percentage", ylab="True Postive Percentage", 
+                  col="#4daf4a", lwd=4, print.auc=TRUE)
+
+
+par(pty = "s")
+roc(test$STATUS, fitted, plot = T, legacy.axes=TRUE, percent=TRUE, 
+                  xlab="False Positive Percentage", ylab="True Postive Percentage", 
+                  main= "ROC Curve SVC Model 1", col="#4daf4a", lwd=4, print.auc=TRUE)
+
+
+
+
+#function to generate model performance metrics
+modelmetric <- function(CM, ROC){
+    accuracy = CM$overall["Accuracy"]
+    precision = CM$byClass["Precision"]
+    recall = CM$byClass["Recall"]
+    specificity = CM$byClass["Specificity"]
+    F1 = CM$byClass["F1"]
+    AUC = (ROC$auc)/100
+    perf_metric = data.frame(Score = c(accuracy, precision, recall, specificity, F1, AUC))
+    row.names(perf_metric)[6] <- "AUC"
+    perf_metric
+}
+
+modelmetric(CM_SVC, m1_svc_roc)
+
+stargazer(modelmetric(CM_SVC, m1_svc_roc),
+          title = ("Model 1 Performance - Support Vector Classifier"),
+          type = "text",
+          summary = FALSE)
+
+
 
 ```
 
@@ -35,21 +85,54 @@ confusionMatrix(x_tab_svm_class)
 
 svm.fit <- tune(svm, STATUS ~ ., data = train, kernel = "radial",
                 ranges = list(
-                    cost = c(0.001, 0.01, 0.1, 1, 5, 10, 100),
-                    gamma = c(0.5, 1, 2, 3, 4, 5)
+                    cost = c( 1, 5, 10),
+                    gamma = c(0.5, 1, 5)
                 )
             )
+saveRDS(svm.fit, "svmfit.rds")
 
 summary(svm.fit)
 
+stargazer(svm.fit$performances,
+          title = ("Model 1 SVM Parameter Tuning"),
+          type = "text",
+          summary = FALSE,
+          digits = 4)
+
 svm_bestmod <- svm.fit$best.model
+
+svm_bestmod
 
 svm_pred <- predict(svm_bestmod, test)
 
 x_tab_svm <- table(Predicted = svm_pred, True = test$STATUS)
 
-confusionMatrix(x_tab_svm)
+cm_svm <- confusionMatrix(x_tab_svm)
 
+cm_svm
+
+#ROC Plot
+svm_fitted <-  attributes(
+    predict(svm_bestmod, test, decision.values = TRUE)
+    )$decision.values
+
+m1_svm_roc <- roc(test$STATUS, svm_fitted, plot = T, legacy.axes=TRUE, percent=TRUE, 
+                  xlab="False Positive Percentage", ylab="True Postive Percentage", 
+                  col="#4daf4a", lwd=4, print.auc=TRUE)
+
+
+par(pty = "s")
+roc(test$STATUS, svm_fitted, plot = T, legacy.axes=TRUE, percent=TRUE, 
+                  xlab="False Positive Percentage", ylab="True Postive Percentage", 
+                  main = "ROC Curve SVM Model 1", col="#4daf4a", lwd=4, print.auc=TRUE)
+
+#Generating the model's performance
+modelmetric(cm_svm, m1_svm_roc)
+
+stargazer(modelmetric(cm_svm, m1_svm_roc),
+          title = ("Model 1 Performance - Support Vector Machine"),
+          type = "text",
+          summary = FALSE)
 
 ```
 

@@ -1,8 +1,10 @@
 ---
 title: "Logistic Regression"
-author: "Wisdom"
+author: "Wisdom Fijo"
 date: "`r Sys.Date()`"
-output: html_document
+output:
+  word_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -12,9 +14,12 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r load data}
 data <- readRDS("kiva_loan_data")
 head(data)
+dim(data)
 ```
 
-```{r simple validation train-test split}
+```{r train-test split}
+library(tidyverse)
+library(stargazer)
 data <- data %>%
     select(STATUS, LOAN_AMOUNT, SECTOR, COUNTRY, DISBURSAL_CURRENCY, CURRENCY_EXCHANGE, GENDER, REPAYMENT_INTERVAL, NUM_OWNERS)
 
@@ -30,33 +35,8 @@ dim(test)
 
 
 
-```{r logistic regression using simple validation}
-
-glm.fit <- glm(formula = STATUS ~ ., family = "binomial", data = train)
-summary(glm.fit)
-
-glm.probs <- predict(glm.fit, newdata = test, type = "response")
-
-# calculating the test accuracy and error rate
-glm.preds <- rep("defaulted", nrow(test))
-glm.preds[glm.probs > 0.5] <- 'paid'
-x_tab <- table(Predicted = glm.preds, True = test$STATUS)
-confusionMatrix(x_tab)
-```
-
-
-```{r Logistic Regression with Cross Fold Validation}
-library(boot)
-
-glm.fit2 <- glm(STATUS ~ ., data = data, family = "binomial")
-
-cv.error <- cv.glm(data, glm.fit2, K = 5)$delta[1]
-
-cv.error
-
-```
-
-```{r elastic regularization}
+```{r elastic net regression}
+set.seed(10)
 library(glmnet)
 x_train <- model.matrix(STATUS~., train)
 y_train <- if_else(train$STATUS == "defaulted", 1, 0)
@@ -92,35 +72,118 @@ for (i in 0:10){
     results <- rbind(results, temp)
 }
 
-results
+stargazer(results,
+          title = ("best alpha value - Model 1"),
+          type = "text",
+          summary = FALSE)
 
 ```
 
-```{r elastic regularization}
-# from the results we can determine that at alpha = 0.0 we get the least test error rate
+```{r training model with best alpha}
+# from the results we can determine that at alpha = 0.2 we get the least test error rate
 
-best.fit.model <- cv.glmnet(x_train, y_train, alpha = 0.0, type.measure = "class",
+best.fit.model <- cv.glmnet(x_train, y_train, alpha = 0.2, type.measure = "class",
                             family = "binomial")
 plot(best.fit.model)
-coef(best.fit.model, s= best.fit.model$lambda.1se)
 
 best.fit.probs <- predict(best.fit.model, s= best.fit.model$lambda.1se, 
                                 newx = x_test, type = "response")
+
 best.fit.pred <- rep("paid", nrow(test))
 best.fit.pred[best.fit.probs > .5] <- "defaulted"
 
 # plotting the confusion matrix
-x_tab<- table(pred = best.fit.pred, true = test$STATUS)
-confusionMatrix(x_tab)
+x_tab<- table(Predicted = best.fit.pred, True = test$STATUS)
+
+x_tab
+
+library(caret)
+lr1_cfm <- confusionMatrix(x_tab)
+
+# Extracting the important variables
+
+get_coef <- function(best_model){
+    coef <- coef(best_model, s= best_model$lambda.1se)
+    coef.m <- as.matrix(coef, rownames = T)
+    coef_df <- coef.m %>%
+    as_tibble(rownames = NA) %>%
+    setNames("coefficient")
+    colnames(coef_df)
+    coef_df
+}
+
+
+
+lr1_coef_df <- get_coef(best.fit.model)
+
+coef_df_n5 <- lr1_coef_df %>%
+    arrange(desc(coefficient)) %>%
+    slice(1:5)
+
+coef_df_zero <- lr1_coef_df %>%
+    filter(coefficient == 0)
+
+
+stargazer(coef_df_n5,
+          title = ("Top 5 Variables"),
+          type = "text",
+          summary = FALSE)
+
+stargazer(coef_df_zero,
+          title = ("Unimportant Variables"),
+          type = "text",
+          summary = FALSE)
+
+#Plotting the ROC Curve
+
+lr1_roc <- roc(test$STATUS, best.fit.probs, plot = T, legacy.axes=TRUE, percent=TRUE, 
+                  xlab="False Positive Percentage", ylab="True Postive Percentage", 
+                  lwd=4)
+par(pty = "s")
+plot(lr1_roc, main = "ROC Curve Logistic Reg. Model 1", col = "#4daf4a", print.auc=TRUE)
+
+
+#Getting the performance metrics
+#function to generate model performance metrics
+modelmetric <- function(CM, ROC){
+    accuracy = CM$overall["Accuracy"]
+    precision = CM$byClass["Precision"]
+    recall = CM$byClass["Recall"]
+    specificity = CM$byClass["Specificity"]
+    F1 = CM$byClass["F1"]
+    AUC = (ROC$auc)/100
+    perf_metric = data.frame(Score = c(accuracy, precision, recall, specificity, F1, AUC))
+    row.names(perf_metric)[6] <- "AUC"
+    perf_metric
+}
+
+stargazer(modelmetric(lr1_cfm, lr1_roc),
+          title = ("Model 1 Performance - Logistic Regression"),
+          type = "text",
+          summary = FALSE)
+
+``` 
+
+
+
+
+```{r Plotting the Logistic Regression Model}
+library(cowplot)
+predicted.data <- data.frame(
+    probability.of.default = best.fit.probs[,1],
+    Status = test$STATUS
+)
+
+predicted.data <- predicted.data[
+    order(predicted.data$probability.of.default, decreasing = FALSE),]
+
+predicted.data$rank <- 1:nrow(predicted.data)
+
+ggplot(data = predicted.data, aes(x = rank, y = probability.of.default))+
+    geom_point(aes(color = Status), alpha = 1, shape = 4, stroke = 2)+
+     theme_bw()+
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank())+
+    xlab("Index")+
+    ylab("Predicted probability of default")
 ```
-Using Elastic regularization vastly improved the classification accuracy 
-from 3.5% to 96.91%
-
-
-```{r}
-library(pROC)
-roc(as.numeric(test$STATUS), as.numeric(best.fit.pred), plot = TRUE, legacy.axes = TRUE, 
-    percent = TRUE, xlab = "False Positive Rate", ylab = "True Positive Rate", 
-    col = "#377eb8", lwd = 4, print.auc = TRUE)
-```
-

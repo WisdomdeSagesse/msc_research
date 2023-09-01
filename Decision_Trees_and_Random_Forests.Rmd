@@ -22,37 +22,19 @@ rpart.plot(tree_model, extra = 106)
 #evaluating the model accuracy on test data
 tree.pred <- predict(tree_model, test, type = "class")
 x_tab <- table(Predicted = tree.pred, True = test$STATUS)
-confusionMatrix(x_tab)
+cmat <- confusionMatrix(x_tab)
+
 ```
 
-```{r prunning the tree}
-cv_tree_model <- cv.tree(tree_model, FUN = prune.misclass)
-names(cv_tree_model)
-cv_tree_model
-# the tree with 7 termainal nodes returns the least cross-validation errors - 64
-
-#plotting the tree
-par(mfrow = c(1,2))
-plot(cv_tree_model$size, cv_tree_model$dev, type = 'b')
-plot(cv_tree_model$k, cv_tree_model$dev, type = 'b')
-
-#evaluating the model's accuracy on test data
-prune.tree <- prune.misclass(tree_model, best = 7)
-tree.prune.pred <- predict(prune.tree, test, type = "class")
-x_tab.prune <- table(Predicted = tree.prune.pred, True = test$STATUS)
-confusionMatrix(x_tab.prune)
-
-#plotting the pruned tree
-plot(prune.tree)
-text(prune.tree, pretty = 0.01)
-
-# there is no improvement in prediction accuracy when the tree is pruned
-```
 
 
 
 ```{r Prune Tree}
-printcp(tree_model)
+
+stargazer(printcp(tree_model),
+          title = ("Model 1 - Cost Complexity Table"),
+          type = "text",
+          summary = FALSE)
 
 plotcp(tree_model)
 
@@ -64,9 +46,50 @@ rpart.plot(ptree_model)
 
 ptree_pred <- predict(ptree_model, newdata = test, type = "class")
 
-x_tab <- table(Predicted = ptree_pred, True = test$STATUS)
+dt1_fitted <- predict(ptree_model, test, type = "prob")
 
-confusionMatrix(x_tab)
+dt_x_tab <- table(Predicted = ptree_pred, True = test$STATUS)
+
+dt_cm <- confusionMatrix(x_tab)
+
+dt_cm
+
+#Plotting the ROC Curve
+
+dt1_roc <- roc(test$STATUS, dt1_fitted[,1], plot = T, legacy.axes=TRUE, percent=TRUE, 
+                  xlab="False Positive Percentage", ylab="True Postive Percentage", 
+                  lwd=4)
+par(pty = "s")
+plot(dt1_roc, main = "ROC Curve Decision Tree - Model 1", col = "#4daf4a", print.auc=TRUE)
+
+stargazer(modelmetric(dt_cm, dt1_roc),
+          title = ("Model 1 Performance - Decision Tree"),
+          type = "text",
+          summary = FALSE)
+
+#getting the variable importance
+
+
+get_var_impt <- function(model){
+    var_impt <- data.frame(model$variable.importance)
+    var_impt <- rownames_to_column(var_impt, "Variable")
+    var_impt <- rename(var_impt, "Gini Index" = "model.variable.importance")
+    var_impt
+}
+
+var_impt <- get_var_impt(ptree_model)
+
+var_impt %>%
+    ggplot(aes(x = reorder(Variable,  - `Gini Index`), y = `Gini Index`))+
+    geom_col()+
+    coord_flip()+
+    theme_bw()+
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank())+
+    labs(
+        x = "variable",
+        title = "Variable Importance"
+    )
 ```
 
 
@@ -75,14 +98,64 @@ library(ggplot2)
 library(randomForest)
 
 rf_model <- randomForest(STATUS ~ ., data = train)
+
 rf_model
 
 rf_pred <- predict(rf_model, newdata = test, type = "class")
-x_tab_rf <- table(Predicted = rf_pred, True = test$STATUS)
-confusionMatrix(x_tab_rf)
 
-importance(rf_model)
-# random forest marginally improves the prediction accuracy by 1%
+rf_fitted <- predict(rf_model, newdata = test, type = "prob")
+
+rf_x_tab <- table(Predicted = rf_pred, True = test$STATUS)
+
+rf_cm <- confusionMatrix(rf_x_tab)
+
+#Plotting the ROC Curve
+
+rf1_roc <- roc(test$STATUS, rf_fitted[,1], plot = T, legacy.axes=TRUE, percent=TRUE, 
+                  xlab="False Positive Percentage", ylab="True Postive Percentage", 
+                  lwd=4)
+par(pty = "s")
+plot(rf1_roc, main = "Model 1 - Random Forest ROC Curve", col = "#4daf4a", print.auc=TRUE)
+
+# Getting the random Forest Metrics
+rf_modelmetric <- function(CM, ROC, RF){
+    accuracy = CM$overall["Accuracy"]
+    precision = CM$byClass["Precision"]
+    recall = CM$byClass["Recall"]
+    specificity = CM$byClass["Specificity"]
+    F1 = CM$byClass["F1"]
+    AUC = (ROC$auc)/100
+    OOB = RF$err.rate[500,1]
+    perf_metric = data.frame(Score = c(accuracy, precision, recall, specificity, F1, AUC, OOB))
+    row.names(perf_metric)[6:7] <- c("AUC", "OOB")
+    perf_metric
+}
+
+stargazer(rf_modelmetric(rf_cm, rf1_roc, rf_model),
+          title = ("Model 1 Performance - Random Forest"),
+          type = "text",
+          summary = FALSE,
+          digits = 3)
+
+
+var_impt <- get_var_impt(ptree_model)
+
+#Identifying variable importance
+rf_importance <- data.frame(rf_model$importance)
+rf_importance <- rownames_to_column(rf_importance, "Variable")
+
+rf_importance %>%
+    ggplot(aes(x = reorder(Variable, -MeanDecreaseGini), y = MeanDecreaseGini))+
+    geom_col()+
+    theme_bw()+
+    coord_flip()+
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank())+
+    labs(
+        title = "Variable Importance",
+        x = "Variable"
+    )
+
 ```
 
 

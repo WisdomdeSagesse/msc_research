@@ -30,25 +30,7 @@ dim(train_df)
 dim(test_df)
 ```
 
-```{r Logistic Regression}
 
-glm.fit <- glm(STATUS ~ ., data = train_df, family = "binomial")
-summary(glm.fit)
-glm.probs <- predict(glm.fit, newdata = test_df, type = "response")
-# calculating the test accuracy and error rate
-glm.preds <- rep("defaulted", nrow(test_df))
-glm.preds[glm.probs > 0.5] <- "paid"
-x_tab <- table(Predicted = glm.preds, True = test_df$STATUS)
-confusionMatrix(x_tab)
-```
-
-
-```{r Logistic Regression with Cross Fold Validation}
-
-cv.glm.fit <- cv.glm(data = train_df, glm.fit, K = 5)
-
-levels(train_df$SECTOR)
-```
 
 ```{r elastic regularization}
 library(glmnet)
@@ -78,6 +60,11 @@ for(i in 0:10){
 }
 
 results
+
+stargazer(results,
+          title = ("best alpha value - Model 2"),
+          type = "text",
+          summary = FALSE)
 ```
 
 ```{r best fit logistic model}
@@ -95,9 +82,57 @@ model.preds[model.probs >0.5] <- "defaulted"
 
 x_tab <- table(Predicted = model.preds, True = test_df$STATUS)
 
-confusionMatrix(x_tab)
+lr2_cm <-confusionMatrix(x_tab)
 
+# Getting the important Variables
+lr2_coef_df <- get_coef(model.fit)
+
+coef2_df_n5 <- lr2_coef_df %>%
+    arrange(desc(coefficient)) %>%
+    slice(1:5)
+
+
+stargazer(coef2_df_n5,
+          title = ("Top 5 Variables"),
+          type = "text",
+          summary = FALSE)
+
+#Plotting the ROC Curve
+
+lr2_roc <- roc(test_df$STATUS, model.probs, plot = T, legacy.axes=TRUE, percent=TRUE, 
+                  xlab="False Positive Percentage", ylab="True Postive Percentage", 
+                  lwd=4)
+par(pty = "s")
+plot(lr2_roc, main = "ROC Curve Logistic Reg. Model 2", col = "#4daf4a", print.auc=TRUE)
+
+#Getting the performance metrics
+stargazer(modelmetric(lr2_cm, lr2_roc),
+          title = ("Model 2 Performance - Logistic Regression"),
+          type = "text",
+          summary = FALSE)
 ```
+
+
+```{r}
+predicted.data <- data.frame(
+    probability.of.default = model.probs[,1],
+    Status = test_df$STATUS
+)
+
+predicted.data <- predicted.data[
+    order(predicted.data$probability.of.default, decreasing = FALSE),]
+
+predicted.data$rank <- 1:nrow(predicted.data)
+
+ggplot(data = predicted.data, aes(x = rank, y = probability.of.default))+
+    geom_point(aes(color = Status), alpha = 1, shape = 4, stroke = 2)+
+     theme_bw()+
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank())+
+    xlab("Index")+
+    ylab("Predicted probability of default")
+```
+
 
 
 ```{r Decision Trees}
@@ -113,11 +148,27 @@ tree.pred <- predict(tree.fit, test_df, type = "class")
 x_tab <- table(Predicted = tree.pred, True = test_df$STATUS)
 
 confusionMatrix(x_tab)
+
+train_df %>%
+    ggplot(aes(fct_infreq(DISBURSAL_CURRENCY), fill = STATUS))+
+    geom_bar(position = "dodge")+
+    theme_bw()+
+    #coord_flip()+
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank())+
+    labs(x = "Currency",
+         y = NULL,
+         title = "Number of Observations per Disbursed Currency")
+
+
 ```
 
 ```{r Pruning the tree}
 
-printcp(tree.fit)
+stargazer(printcp(tree.fit),
+          title = ("Model 2 - Cost Complexity Table"),
+          type = "text",
+          summary = FALSE)
 
 plotcp(tree.fit)
 
@@ -129,9 +180,40 @@ rpart.plot(tree.fit)
 
 ptree.pred <- predict(ptree, test_df, type = "class")
 
-x_tab <- table(Predicted = ptree.pred, True = test_df$STATUS)
+dt2_fitted <- predict(ptree, test, type = "prob")
 
-confusionMatrix(x_tab)
+dt2_x_tab <- table(Predicted = ptree.pred, True = test_df$STATUS)
+
+dt2_cm <- confusionMatrix(dt2_x_tab)
+
+#Plot ROC
+
+dt2_roc <- roc(test_df$STATUS, dt2_fitted[,1], plot = T, legacy.axes=TRUE, percent=TRUE, 
+                  xlab="False Positive Percentage", ylab="True Postive Percentage", 
+                  lwd=4)
+par(pty = "s")
+plot(dt2_roc, main = "Model 2 - ROC Curve Decision Tree", col = "#4daf4a", print.auc=TRUE)
+
+stargazer(modelmetric(dt2_cm, dt2_roc),
+          title = ("Model 2 Performance - Decision Tree"),
+          type = "text",
+          summary = FALSE)
+
+#getting the variable importance
+
+var_impt2 <- get_var_impt(ptree)
+
+var_impt2 %>%
+    ggplot(aes(x = reorder(Variable,  - `Gini Index`), y = `Gini Index`))+
+    geom_col()+
+    coord_flip()+
+    theme_bw()+
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank())+
+    labs(
+        x = "variable",
+        title = "Variable Importance"
+    )
 
 ```
 
@@ -143,10 +225,43 @@ rf.fit <- randomForest(STATUS ~ ., data = train_df)
 rf.fit
 
 rf_pred <- predict(rf.fit, newdata = test_df, type = "class")
-x_tab <- table(Predicted = rf_pred, True = test$STATUS)
-confusionMatrix(x_tab)
 
-importance(rf.fit)
+rf2_fitted <- predict(rf.fit, newdata = test_df, type = "prob")
+
+rf2_x_tab <- table(Predicted = rf_pred, True = test$STATUS)
+
+rf2_cm <- confusionMatrix(rf2_x_tab)
+
+#Plotting the ROC Curve
+
+rf2_roc <- roc(test_df$STATUS, rf2_fitted[,1], plot = T, legacy.axes=TRUE, percent=TRUE, 
+                  xlab="False Positive Percentage", ylab="True Postive Percentage", 
+                  lwd=4)
+par(pty = "s")
+plot(rf2_roc, main = "Model 2 - Random Forest ROC Curve", col = "#4daf4a", print.auc=TRUE)
+
+#Getting the performance metrics
+stargazer(rf_modelmetric(rf2_cm, rf2_roc, rf.fit),
+          title = ("Model 2 Performance - Random Forest"),
+          type = "text",
+          summary = FALSE,
+          digits = 3)
+
+#Identifying variable importance
+rf_importance2 <- data.frame(rf.fit$importance)
+rf_importance2 <- rownames_to_column(rf_importance2, "Variable")
+
+rf_importance2 %>%
+    ggplot(aes(x = reorder(Variable, -MeanDecreaseGini), y = MeanDecreaseGini))+
+    geom_col()+
+    theme_bw()+
+    coord_flip()+
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank())+
+    labs(
+        title = "Variable Importance",
+        x = "Variable"
+    )
 ```
 
 ```{r Support Vector Classifier}
@@ -157,15 +272,51 @@ svm.class.fit <- tune(svm, STATUS ~ ., data = train_df, kernel = "linear",
 
 summary(svm.class.fit)
 
-bestmod <- svm.class.fit$best.model
+saveRDS(svm.class.fit, "svc2")
 
-summary(bestmod)
+svc2 <- readRDS("svc2")
 
-pred <- predict(bestmod, test_df)
+stargazer(svc2$performances,
+          title = ("Model 2 - SVC Parameter Tuning"),
+          type = "text",
+          summary = FALSE,
+          digits = 4)
 
-x_tab <- table(Predicted = pred, True = test_df$STATUS)
+summary(svc2)
 
-confusionMatrix(x_tab)
+svc2_bestmod <- svc2$best.model
+
+summary(svc2_bestmod)
+
+svc2_pred <- predict(svc2_bestmod, test_df)
+
+svc2_x_tab <- table(Predicted = svc2_pred, True = test_df$STATUS)
+
+svc2_cm <- confusionMatrix(svc2_x_tab)
+
+svc2_cm
+
+#ROC Plot
+svc2.fitted <-  attributes(
+    predict(svc2_bestmod, test_df, decision.values = TRUE)
+    )$decision.values
+
+svc2_roc <- roc(test_df$STATUS, svc2.fitted, plot = T, legacy.axes=TRUE, percent=TRUE, 
+                  xlab="False Positive Percentage", ylab="True Postive Percentage", 
+                  col="#4daf4a", lwd=4, print.auc=TRUE)
+
+
+par(pty = "s")
+plot(svc2_roc, main = "Model 2 - SVC ROC Curve", col = "#4daf4a", print.auc=TRUE)
+
+# Getting Model Performance Metrics
+
+modelmetric(svc2_cm, svc2_roc)
+
+stargazer(modelmetric(svc2_cm, svc2_roc),
+          title = ("Model 2 - SVC Performance"),
+          type = "text",
+          summary = FALSE)
 
 ```
 
@@ -173,19 +324,55 @@ confusionMatrix(x_tab)
 ```{r SVM}
 svm.fit <- tune(svm, STATUS ~ ., data = train_df, kernel = "radial",
                 ranges = list(
-                    cost = c(0.001, 0.01, 0.1, 1, 5, 10, 100),
-                    gamma = c(0.5, 1, 2, 3, 4, 5)
+                    cost = c( 1, 5, 10),
+                    gamma = c(0.5, 1, 5)
                 )
             )
 
-summary(svm.fit)
 
-svm_bestmod <- svm.fit$best.model
+saveRDS(svm.fit, "svm2")
 
-svm_pred <- predict(svm_bestmod, test_df)
+svm2 <- readRDS("svm2")
 
-x_tab <- table(Predicted = svm_pred, True = test_df$STATUS)
+stargazer(svm2$performances,
+          title = ("Model 2 - SVM Parameter Tuning"),
+          type = "text",
+          summary = FALSE,
+          digits = 4)
 
-confusionMatrix(x_tab)
+summary(svm2)
+
+svm2_bestmod <- svm2$best.model
+
+svm2_pred <- predict(svm2_bestmod, test_df)
+
+svm2_x_tab <- table(Predicted = svm2_pred, True = test_df$STATUS)
+
+svm2_cm <- confusionMatrix(svm2_x_tab)
+
+svm2_cm
+
+#ROC Plot
+svm2.fitted <-  attributes(
+    predict(svm2_bestmod, test_df, decision.values = TRUE)
+    )$decision.values
+
+svm2_roc <- roc(test_df$STATUS, svm2.fitted, plot = T, legacy.axes=TRUE, percent=TRUE, 
+                  xlab="False Positive Percentage", ylab="True Postive Percentage", 
+                  col="#4daf4a", lwd=4, print.auc=TRUE)
+
+
+par(pty = "s")
+plot(svm2_roc, main = "Model 2 - SVM ROC Curve", col = "#4daf4a", print.auc=TRUE)
+
+# Getting Model Performance Metrics
+
+modelmetric(svm2_cm, svm2_roc)
+
+stargazer(modelmetric(svm2_cm, svm2_roc),
+          title = ("Model 2 - SVM Performance"),
+          type = "text",
+          summary = FALSE)
+
 ```
 

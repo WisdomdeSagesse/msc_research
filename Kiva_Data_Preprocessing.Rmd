@@ -32,7 +32,7 @@ glimpse(loan_data)
 
 ```{r selecting variables}
 loan_data <- loan_data %>%
-    select(ID, NAME, STATUS, LOAN_AMOUNT, SECTOR, COUNTRY,
+    select(ID, STATUS, LOAN_AMOUNT, SECTOR, COUNTRY,
            DISBURSAL_CURRENCY, CURRENCY_EXCHANGE, GENDER, REPAYMENT_INTERVAL)
 ```
 
@@ -94,16 +94,33 @@ loan_data
 ```
 
 ```{r reclassify variables}
-loan_data <- loan_data %>% 
+glimpse(loan_data)
+
+ loan_data <- loan_data %>% 
     mutate(across(c(STATUS, SECTOR, COUNTRY, DISBURSAL_CURRENCY,
                     CURRENCY_EXCHANGE, GENDER, REPAYMENT_INTERVAL), factor))
 dim(loan_data)
 ```
 
-```{r dealing with imbalanced classes}
-summary(loan_data$STATUS)
-kiva_loan_data <- upSample(loan_data[, -3], loan_data$STATUS, yname= "STATUS")
+```{r feature engineering on currency}
+
+loan_data$DISBURSAL_CURRENCY <- if_else(loan_data$DISBURSAL_CURRENCY == 'USD', 
+                                        "Foreign", "Domestic")
+loan_data$DISBURSAL_CURRENCY <- as.factor(loan_data$DISBURSAL_CURRENCY)
+```
+
+
+```{r dealing with imbalanced data}
+
+unique(loan_data$STATUS)
+
+count(loan_data, STATUS) %>%
+    view()
+
+
+kiva_loan_data <- upSample(loan_data[, -2], loan_data$STATUS, yname = "STATUS")
 dim(kiva_loan_data)
+
 ```
 
 
